@@ -7,7 +7,7 @@ variables:
   dockerfilePath: Dockerfile
 
 pool:
-  vmImage: 'ubuntu-latest'
+  vmImage: 'default'
 
 stages:
 - stage: BuildAndPush

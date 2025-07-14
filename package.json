@@ -1,0 +1,13 @@
+{
+  "name": "azure-devops-node-app",
+  "version": "1.0.0",
+  "description": "Dummy Node.js app for Azure DevOps CI/CD",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
+

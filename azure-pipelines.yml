@@ -3,16 +3,18 @@ trigger:
 
 variables:
   imageName: 'azuredevops'
-  containerRegistry: 'azuredevops.azurecr.io'  # 🔁 Replace with your ACR login server
+  containerRegistry: 'azuredevops.azurecr.io'  # Replace with your ACR login server
   dockerfilePath: Dockerfile
 
 pool:
-  vmImage: 'default'
+  name: Default  # ✅ Use self-hosted agent pool here
 
 stages:
 - stage: BuildAndPush
   jobs:
   - job: Build
+    pool:
+      name: Default  # ✅ Self-hosted agent pool
     steps:
     - task: Docker@2
       displayName: 'Build Docker image'
@@ -33,11 +35,13 @@ stages:
   dependsOn: BuildAndPush
   jobs:
   - job: DeployToVM
+    pool:
+      name: Default  # ✅ Self-hosted agent pool
     steps:
     - task: SSH@0
       displayName: 'Deploy on Azure VM'
       inputs:
-        sshEndpoint: 'lba-vm'  # 🔁 Use your actual SSH service connection name
+        sshEndpoint: 'lba-vm'  # Use your actual SSH service connection name
         runOptions: 'inline'
         inline: |
           echo "Pulling image from ACR..."

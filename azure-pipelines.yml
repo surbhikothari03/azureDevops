@@ -1,64 +1,28 @@
 trigger:
-- main
+- none  # Manual trigger
 
 variables:
-  imageName: 'azuredevops'
-  dockerfilePath: Dockerfile
   acrLoginServer: 'azuredevops.azurecr.io'
   acrUsername: 'azuredevops'
-  # acrPassword must be added in Azure DevOps UI as a secret variable
+  # acrPassword is secret — stored in pipeline UI
 
 pool:
   name: Default
 
-stages:
-- stage: BuildAndPush
-  jobs:
-  - job: Build
-    steps:
-    - script: |
-        echo "ACR Login Server: $ACR_LOGIN_SERVER"
-        echo "Logging into ACR..."
-        echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
+jobs:
+- job: TestAcrLogin
+  steps:
+  - script: |
+      echo "Logging in to ACR..."
+      echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
 
-        echo "Building Docker image..."
-        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:latest -f $DOCKERFILE_PATH .
+      echo "Verifying login with docker info..."
+      docker info
 
-        echo "Pushing Docker image..."
-        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
-      displayName: 'Build and Push using docker CLI'
-      env:
-        ACR_LOGIN_SERVER: $(acrLoginServer)
-        ACR_USERNAME: $(acrUsername)
-        ACR_PASSWORD: $(acrPassword)  # secret gets passed securely
-        IMAGE_NAME: $(imageName)
-        DOCKERFILE_PATH: $(dockerfilePath)
-
-- stage: Deploy
-  dependsOn: BuildAndPush
-  jobs:
-  - job: DeployToVM
-    steps:
-    - task: SSH@0
-      displayName: 'Deploy on Azure VM'
-      inputs:
-        sshEndpoint: 'lba-vm'
-        runOptions: 'inline'
-        inline: |
-          echo "Logging into ACR..."
-          echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
-
-          echo "Pulling Docker image..."
-          docker pull $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
-
-          echo "Stopping old container if running..."
-          docker stop nodejs-container || true
-          docker rm nodejs-container || true
-
-          echo "Running new container..."
-          docker run -d --name nodejs-container -p 3000:3000 $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
-      env:
-        ACR_LOGIN_SERVER: $(acrLoginServer)
-        ACR_USERNAME: $(acrUsername)
-        ACR_PASSWORD: $(acrPassword)
-        IMAGE_NAME: $(imageName)
+      echo "Testing image pull (you can change image name if needed)..."
+      docker pull $ACR_LOGIN_SERVER/azuredevops:latest || echo "Pull failed — image might not exist, but login was tested"
+    env:
+      ACR_LOGIN_SERVER: $(acrLoginServer)
+      ACR_USERNAME: $(acrUsername)
+      ACR_PASSWORD: $(acrPassword)
+    displayName: 'Test ACR Authentication'

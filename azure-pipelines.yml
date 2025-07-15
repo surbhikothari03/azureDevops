@@ -6,26 +6,25 @@ variables:
   dockerfilePath: Dockerfile
   acrLoginServer: 'azuredevops.azurecr.io'
   acrUsername: 'azuredevops'
-  # acrPassword is securely pulled from variable group (not defined here)
+  # acrPassword is defined in Azure DevOps pipeline UI as a secret variable (DO NOT add here)
+
+pool:
+  name: Default
 
 stages:
 - stage: BuildAndPush
   jobs:
   - job: Build
-    pool:
-      vmImage: default
     steps:
-    - task: DockerInstaller@0
-      displayName: 'Install Docker'
-
-    - script: |
-        echo "Building Docker image..."
-        docker build -f $(dockerfilePath) -t $(acrLoginServer)/$(imageName):latest .
-        echo "Logging in to ACR..."
-        echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
-        echo "Pushing image to ACR..."
-        docker push $(acrLoginServer)/$(imageName):latest
-      displayName: 'Build and Push using Docker CLI'
+    - task: Docker@2
+      displayName: 'Build and Push Docker image'
+      inputs:
+        command: 'buildAndPush'
+        containerRegistry: 'azuredevops-acr-service-connection'  # Your ACR service connection
+        repository: '$(imageName)'
+        Dockerfile: '$(dockerfilePath)'
+        tags: |
+          latest
 
 - stage: Deploy
   dependsOn: BuildAndPush
@@ -38,7 +37,7 @@ stages:
         sshEndpoint: 'lba-vm'
         runOptions: 'inline'
         inline: |
-          echo "Logging in to ACR..."
+          echo "Logging in to ACR using Docker CLI..."
           echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
 
           echo "Pulling image from ACR..."
@@ -48,5 +47,5 @@ stages:
           docker stop nodejs-container || true
           docker rm nodejs-container || true
 
-          echo "Running new container..."
-          docker run -d --name nodejs-container -p 80:3000 $(acrLoginServer)/$(imageName):latest
+          echo "Starting new container..."
+          docker run -d --name nodejs-container -p 3000:3000 $(acrLoginServer)/$(imageName):latest

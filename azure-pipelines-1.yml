@@ -1,0 +1,48 @@
+trigger:
+- main
+
+variables:
+  imageName: 'azuredevops'
+  dockerfilePath: Dockerfile
+
+pool:
+  name: Default
+
+stages:
+- stage: BuildAndPush
+  jobs:
+  - job: Build
+    steps:
+    - task: Docker@2
+      displayName: 'Build and Push Docker image'
+      inputs:
+        command: 'buildAndPush'   # ✅ build and push in one step
+        containerRegistry: 'azuredevops-acr-service-connection'  # ✅ use service connection name here
+        repository: 'azuredevops'      # ✅ only repo name, NOT full ACR URL
+        Dockerfile: '$(dockerfilePath)'
+        tags: |
+          latest
+
+- stage: Deploy
+  dependsOn: BuildAndPush
+  jobs:
+  - job: DeployToVM
+    steps:
+    - task: SSH@0
+      displayName: 'Deploy on Azure VM'
+      inputs:
+        sshEndpoint: 'lba-vm'
+        runOptions: 'inline'
+        inline: |
+          echo "Logging in to ACR..."
+          az acr login --name azuredevops
+
+          echo "Pulling image from ACR..."
+          docker pull azuredevops.azurecr.io/azuredevops:latest
+
+          echo "Stopping old container (if any)..."
+          docker stop nodejs-container || true
+          docker rm nodejs-container || true
+
+          echo "Starting new container..."
+          docker run -d --name nodejs-container -p 3000:3000 azuredevops.azurecr.io/azuredevops:latest

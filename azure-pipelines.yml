@@ -17,8 +17,10 @@ stages:
   - job: Build
     steps:
     - script: |
-        echo "Logging in to ACR..."
+        echo "ACR Login Server: $(acrLoginServer)"
+        echo "Trying to log in to ACR..."
         echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
+        displayName: 'Docker Login to ACR'
 
         echo "Building Docker image..."
         docker build -t $(acrLoginServer)/$(imageName):latest -f $(dockerfilePath) .

@@ -1,5 +1,5 @@
 trigger:
-- main  # Change to your actual branch name if different
+- main  # or your default branch
 
 pool:
   vmImage: default
@@ -11,16 +11,16 @@ steps:
 
 # Upload the deploy-container.sh to remote Linux VM
 - task: CopyFilesOverSSH@0
-  displayName: 'Upload deploy-container.sh to Linux VM'
+  name: UploadScript
   inputs:
-    sshEndpoint: 'lba-vm'  # Replace with your SSH service connection name
+    sshEndpoint: 'lba-vm'                     # Your service connection name
     sourceFolder: '$(Build.SourcesDirectory)/scripts'
     contents: 'deploy-container.sh'
-    targetFolder: '/home/azureuser/scripts'  # Adjust if username or path is different
+    targetFolder: '/home/azureuser/scripts'      # Adjust based on your user
 
 # Execute the script remotely with ACR credentials passed as environment variables
 - task: SSH@0
-  displayName: 'Run deployment script on Linux VM'
+  name: RunScript
   inputs:
     sshEndpoint: 'lba-vm'
     runOptions: 'commands'

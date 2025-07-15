@@ -6,7 +6,7 @@ variables:
   dockerfilePath: Dockerfile
   acrLoginServer: 'azuredevops.azurecr.io'
   acrUsername: 'azuredevops'
-  # acrPassword is stored as a **secret variable** in the pipeline UI or Variable Group
+  # acrPassword must be added in Azure DevOps UI as a secret variable
 
 pool:
   name: Default
@@ -17,17 +17,22 @@ stages:
   - job: Build
     steps:
     - script: |
-        echo "ACR Login Server: $(acrLoginServer)"
-        echo "Trying to log in to ACR..."
-        echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
-        displayName: 'Docker Login to ACR'
+        echo "ACR Login Server: $ACR_LOGIN_SERVER"
+        echo "Logging into ACR..."
+        echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
 
         echo "Building Docker image..."
-        docker build -t $(acrLoginServer)/$(imageName):latest -f $(dockerfilePath) .
+        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:latest -f $DOCKERFILE_PATH .
 
-        echo "Pushing Docker image to ACR..."
-        docker push $(acrLoginServer)/$(imageName):latest
+        echo "Pushing Docker image..."
+        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
       displayName: 'Build and Push using docker CLI'
+      env:
+        ACR_LOGIN_SERVER: $(acrLoginServer)
+        ACR_USERNAME: $(acrUsername)
+        ACR_PASSWORD: $(acrPassword)  # secret gets passed securely
+        IMAGE_NAME: $(imageName)
+        DOCKERFILE_PATH: $(dockerfilePath)
 
 - stage: Deploy
   dependsOn: BuildAndPush
@@ -40,15 +45,20 @@ stages:
         sshEndpoint: 'lba-vm'
         runOptions: 'inline'
         inline: |
-          echo "Logging in to ACR..."
-          echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
+          echo "Logging into ACR..."
+          echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
 
-          echo "Pulling image from ACR..."
-          docker pull $(acrLoginServer)/$(imageName):latest
+          echo "Pulling Docker image..."
+          docker pull $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
 
-          echo "Stopping old container (if any)..."
+          echo "Stopping old container if running..."
           docker stop nodejs-container || true
           docker rm nodejs-container || true
 
-          echo "Starting new container..."
-          docker run -d --name nodejs-container -p 3000:3000 $(acrLoginServer)/$(imageName):latest
+          echo "Running new container..."
+          docker run -d --name nodejs-container -p 3000:3000 $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
+      env:
+        ACR_LOGIN_SERVER: $(acrLoginServer)
+        ACR_USERNAME: $(acrUsername)
+        ACR_PASSWORD: $(acrPassword)
+        IMAGE_NAME: $(imageName)

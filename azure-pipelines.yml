@@ -47,7 +47,9 @@ stages:
         runOptions: 'inline'
         inline: |
           echo "Logging in to ACR..."
-          docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" -p "$ACR_PASSWORD"
+          echo "$ACR_PASSWORD" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" --password-stdin
+
+          echo "Image full name: $ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
           echo "Pulling image from ACR..."
           docker pull "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
@@ -60,6 +62,7 @@ stages:
           docker run -d --name nodejs-container -p 3000:3000 "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
           echo "✅ Deployment complete!"
+
       env:
         ACR_USERNAME: $(acrUsername)
         ACR_PASSWORD: $(acrPassword)

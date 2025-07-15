@@ -4,24 +4,28 @@ trigger:
 variables:
   imageName: 'azuredevops'
   dockerfilePath: Dockerfile
-
-pool:
-  name: Default
+  acrLoginServer: 'azuredevops.azurecr.io'
+  acrUsername: 'azuredevops'
+  # acrPassword is securely pulled from variable group (not defined here)
 
 stages:
 - stage: BuildAndPush
   jobs:
   - job: Build
+    pool:
+      vmImage: ubuntu-latest
     steps:
-    - task: Docker@2
-      displayName: 'Build and Push Docker image'
-      inputs:
-        command: 'buildAndPush'
-        containerRegistry: 'acr-docker-connection'  # ✅ New dockerRegistry-type service connection
-        repository: 'azuredevops'                   # ✅ Only repo name, no ACR URL
-        Dockerfile: '$(dockerfilePath)'
-        tags: |
-          latest
+    - task: DockerInstaller@0
+      displayName: 'Install Docker'
+
+    - script: |
+        echo "Building Docker image..."
+        docker build -f $(dockerfilePath) -t $(acrLoginServer)/$(imageName):latest .
+        echo "Logging in to ACR..."
+        echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
+        echo "Pushing image to ACR..."
+        docker push $(acrLoginServer)/$(imageName):latest
+      displayName: 'Build and Push using Docker CLI'
 
 - stage: Deploy
   dependsOn: BuildAndPush
@@ -35,14 +39,14 @@ stages:
         runOptions: 'inline'
         inline: |
           echo "Logging in to ACR..."
-          az acr login --name azuredevops
+          echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
 
           echo "Pulling image from ACR..."
-          docker pull azuredevops.azurecr.io/azuredevops:latest
+          docker pull $(acrLoginServer)/$(imageName):latest
 
           echo "Stopping old container (if any)..."
           docker stop nodejs-container || true
           docker rm nodejs-container || true
 
-          echo "Starting new container..."
-          docker run -d --name nodejs-container -p 3000:3000 azuredevops.azurecr.io/azuredevops:latest
+          echo "Running new container..."
+          docker run -d --name nodejs-container -p 80:3000 $(acrLoginServer)/$(imageName):latest

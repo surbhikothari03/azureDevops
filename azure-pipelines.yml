@@ -6,7 +6,7 @@ variables:
   dockerfilePath: Dockerfile
   acrLoginServer: 'azuredevops.azurecr.io'
   acrUsername: 'azuredevops'  # ✅ ACR admin username
-  # acrPassword is set as a secret variable in Azure DevOps UI
+  # acrPassword should be securely set as a secret variable in the Azure DevOps UI
 
 pool:
   name: Default
@@ -18,13 +18,13 @@ stages:
     steps:
     - script: |
         echo "Logging in to ACR..."
-        echo "$ACR_PASSWORD" | docker login $ACR_LOGIN_SERVER -u $ACR_USERNAME --password-stdin
+        echo "$ACR_PASSWORD" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" --password-stdin
 
         echo "Building Docker image..."
-        docker build -t $ACR_LOGIN_SERVER/$IMAGE_NAME:latest -f $DOCKERFILE_PATH .
+        docker build -t "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest" -f "$DOCKERFILE_PATH" .
 
         echo "Pushing Docker image..."
-        docker push $ACR_LOGIN_SERVER/$IMAGE_NAME:latest
+        docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
       env:
         ACR_LOGIN_SERVER: $(acrLoginServer)
         ACR_USERNAME: $(acrUsername)
@@ -41,18 +41,25 @@ stages:
     - task: SSH@0
       displayName: 'Deploy on Azure VM'
       inputs:
-        sshEndpoint: 'lba-vm'
+        sshEndpoint: 'lba-vm'  # 🔁 Replace with your configured SSH service connection name
         runOptions: 'inline'
         inline: |
           echo "Logging in to ACR..."
-          echo "$(acrPassword)" | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
+          echo "$ACR_PASSWORD" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_USERNAME" --password-stdin
 
           echo "Pulling image from ACR..."
-          docker pull $(acrLoginServer)/$(imageName):latest
+          docker pull "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
           echo "Stopping old container (if any)..."
           docker stop nodejs-container || true
           docker rm nodejs-container || true
 
           echo "Starting new container..."
-          docker run -d --name nodejs-container -p 3000:3000 $(acrLoginServer)/$(imageName):latest
+          docker run -d --name nodejs-container -p 3000:3000 "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
+
+          echo "Deployment complete!"
+      env:
+        ACR_USERNAME: $(acrUsername)
+        ACR_PASSWORD: $(acrPassword)
+        ACR_LOGIN_SERVER: $(acrLoginServer)
+        IMAGE_NAME: $(imageName)

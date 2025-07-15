@@ -1,59 +1,35 @@
 trigger:
-- main
-
-variables:
-  imageName: 'azuredevops'
-  dockerfilePath: 'Dockerfile'
-  acrLoginServer: 'azuredevops.azurecr.io'
-  acrUsername: 'azuredevops'
-  # acrPassword should be defined as a secret pipeline variable or in a variable group
+- main  # Change to your actual branch name if different
 
 pool:
-  name: Default
+  vmImage: ubuntu-latest
 
-stages:
-- stage: BuildAndPush
-  displayName: 'Build and Push Docker Image to ACR'
-  jobs:
-  - job: Build
-    displayName: 'Build Docker Image and Push to ACR'
-    steps:
-    - script: |
-        echo "Logging in to ACR..."
-        echo "$(acrPassword)" | docker login "$(acrLoginServer)" --username "$(acrUsername)" --password-stdin
+variables:
+  acrLoginServer: azuredevops.azurecr.io
 
-        echo "Building Docker image..."
-        docker build -t "$(acrLoginServer)/$(imageName):latest" -f "$(dockerfilePath)" .
+steps:
 
-        echo "Pushing Docker image..."
-        docker push "$(acrLoginServer)/$(imageName):latest"
-      displayName: 'Build and Push Docker Image'
+# Upload the deploy-container.sh to remote Linux VM
+- task: CopyFilesOverSSH@0
+  displayName: 'Upload deploy-container.sh to Linux VM'
+  inputs:
+    sshEndpoint: 'lba-vm'  # Replace with your SSH service connection name
+    sourceFolder: '$(Build.SourcesDirectory)/scripts'
+    contents: 'deploy-container.sh'
+    targetFolder: '/home/azureuser/scripts'  # Adjust if username or path is different
 
-- stage: Deploy
-  displayName: 'Deploy to Azure VM'
-  dependsOn: BuildAndPush
-  jobs:
-  - job: DeployToVM
-    displayName: 'Deploy Docker Container to Linux VM'
-    steps:
-    - task: SSH@0
-      displayName: 'SSH into VM and Deploy Container'
-      inputs:
-        sshEndpoint: 'lba-vm'  # Replace with your actual service connection name
-        runOptions: 'inline'
-        inline: |
-          echo "Logging in to ACR..."
-          echo $(acrPassword) | docker login $(acrLoginServer) --username $(acrUsername) --password-stdin
-
-          IMAGE_FULL_NAME="$(acrLoginServer)/$(imageName):latest"
-          echo "Image full name: $IMAGE_FULL_NAME"
-
-          echo "Pulling image from ACR..."
-          docker pull $IMAGE_FULL_NAME
-
-          echo "Stopping old container if exists..."
-          docker stop nodejs-container || true
-          docker rm nodejs-container || true
-
-          echo "Starting new container..."
-          docker run -d --name nodejs-container -p 80:80 $IMAGE_FULL_NAME
+# Execute the script remotely with ACR credentials passed as environment variables
+- task: SSH@0
+  displayName: 'Run deployment script on Linux VM'
+  inputs:
+    sshEndpoint: 'lba-vm'
+    runOptions: 'commands'
+    commands: |
+      echo "Running deployment script on remote VM..."
+      export acrUsername="$(acrUsername)"
+      export acrPassword="$(acrPassword)"
+      chmod +x /home/azureuser/scripts/deploy-container.sh
+      /home/azureuser/scripts/deploy-container.sh
+  env:
+    acrUsername: $(acrUsername)
+    acrPassword: $(acrPassword)

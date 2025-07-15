@@ -16,9 +16,9 @@ stages:
     - task: Docker@2
       displayName: 'Build and Push Docker image'
       inputs:
-        command: 'buildAndPush'   # ✅ build and push in one step
-        containerRegistry: 'azuredevops-acr-service-connection'  # ✅ use service connection name here
-        repository: 'azuredevops'      # ✅ only repo name, NOT full ACR URL
+        command: 'buildAndPush'
+        containerRegistry: 'acr-docker-connection'  # ✅ New dockerRegistry-type service connection
+        repository: 'azuredevops'                   # ✅ Only repo name, no ACR URL
         Dockerfile: '$(dockerfilePath)'
         tags: |
           latest

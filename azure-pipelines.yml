@@ -6,7 +6,7 @@ variables:
   dockerfilePath: Dockerfile
   acrLoginServer: 'azuredevops.azurecr.io'
   acrUsername: 'azuredevops'
-  # acrPassword is defined in Azure DevOps pipeline UI as a secret variable (DO NOT add here)
+  # acrPassword is stored as a **secret variable** in the pipeline UI or Variable Group
 
 pool:
   name: Default
@@ -16,15 +16,16 @@ stages:
   jobs:
   - job: Build
     steps:
-    - task: Docker@2
-      displayName: 'Build and Push Docker image'
-      inputs:
-        command: 'buildAndPush'
-        containerRegistry: 'azuredevops-acr-service-connection'  # Your ACR service connection
-        repository: '$(imageName)'
-        Dockerfile: '$(dockerfilePath)'
-        tags: |
-          latest
+    - script: |
+        echo "Logging in to ACR..."
+        echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
+
+        echo "Building Docker image..."
+        docker build -t $(acrLoginServer)/$(imageName):latest -f $(dockerfilePath) .
+
+        echo "Pushing Docker image to ACR..."
+        docker push $(acrLoginServer)/$(imageName):latest
+      displayName: 'Build and Push using docker CLI'
 
 - stage: Deploy
   dependsOn: BuildAndPush
@@ -37,7 +38,7 @@ stages:
         sshEndpoint: 'lba-vm'
         runOptions: 'inline'
         inline: |
-          echo "Logging in to ACR using Docker CLI..."
+          echo "Logging in to ACR..."
           echo $(acrPassword) | docker login $(acrLoginServer) -u $(acrUsername) --password-stdin
 
           echo "Pulling image from ACR..."
